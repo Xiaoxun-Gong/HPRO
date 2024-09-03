@@ -1,0 +1,22 @@
+&input_pw2bgw
+   prefix = 'MoS2'
+   real_or_complex = 2
+   wfng_flag = .false.
+   wfng_file = 'WFN'
+   wfng_kgrid = .true.
+   wfng_nk1 = 6
+   wfng_nk2 = 6
+   wfng_nk3 = 1
+   wfng_dk1 = 0.0
+   wfng_dk2 = 0.0
+   wfng_dk3 = 0.0
+
+   rhog_flag = .false.
+   rhog_file = 'RHO'
+   vxcg_flag = .false.
+   vxcg_file = 'VXC'
+   vscg_flag = .true.
+   vscg_file = 'VSC'
+   vkbg_flag = .false.
+   vkbg_file = 'VKB'
+/

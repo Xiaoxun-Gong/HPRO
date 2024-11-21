@@ -1,0 +1,58 @@
+
+SystemName   MoS2
+SystemLabel  siesta
+
+NumberOfAtoms        6
+NumberOfSpecies      2
+%block ChemicalSpeciesLabel
+  1 42 Mo
+  2 16 S 
+%endblock ChemicalSpeciesLabel
+LatticeConstant    1.0  Ang
+%block LatticeVectors
+    3.1475397403694503   -0.0000000000000009    0.0000000000000000
+   -1.5737698701847196    2.7258493745810197    0.0000000000000000
+    0.0000000000000000    0.0000000000000000   20.0000000000000000
+%endblock LatticeVectors
+AtomicCoordinatesFormat  Fractional
+%block AtomicCoordinatesAndAtomicSpecies
+  0.3333329860000021    0.6666669849999991    0.4126130268582878  1
+  0.6666669849999991    0.3333329860000021    0.7158518858835106  1
+  0.6666669849999991    0.3333329860000021    0.3341893333364299  2
+  0.6666669849999991    0.3333329860000021    0.4909603512586637  2
+  0.3333329860000021    0.6666669849999991    0.6375045602391790  2
+  0.3333329860000021    0.6666669849999991    0.7942755595021608  2
+%endblock AtomicCoordinatesAndAtomicSpecies
+
+PAO.BasisSize       DZP
+PAO.BasisType       nodes
+%block PAO.Basis
+S          3              # We include 3 shells
+ n=3   0   2              # 3s orbitals (double zeta)
+   0.000      0.000
+   1.000      1.000
+ n=3   1   2 P            # 3p orbitals (double zeta) + polarization (single zeta)
+   0.000      0.000
+   1.000      1.000
+ n=4   0   1              # 4s orbitals (diffuse orbital, single zeta)
+   8.000     
+   1.000     
+%endblock PAO.Basis
+
+%block kgrid_Monkhorst_Pack
+   6    0    0   0.0
+   0    6    0   0.0
+   0    0    1   0.0
+%endblock kgrid_Monkhorst_Pack
+
+SolutionMethod          diagon
+OccupationFunction      MP
+ElectronicTemperature   0.0000 eV
+MaxSCFIterations        300
+MeshCutoff              320.0 Ry
+DM.Tolerance            1.E-6
+SCF.H.Converge          F
+UseSaveData             F
+DM.UseSaveDM            F
+SpinOrbit               F
+Diag.ParallelOverK      T

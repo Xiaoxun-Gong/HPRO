@@ -1,0 +1,44 @@
+%YAML 1.2
+---
+
+siesta:
+  version: "5.1-MaX-11-g1efbd823e"
+  arch: "----"
+  compiler: "GNU-12.3.0"
+  fflags: "-fallow-argument-mismatch;-O3 -march=native"
+  fppflags: "----"
+  libs: "----"
+  build: "mpi"
+  openmp: "yes"
+  gemm3m: "yes"
+  netcdf: "yes"
+  netcdf4: "yes"
+  netcdf4_mpi: "yes"
+  metis: "no"
+  chess: "no"
+  elpa: "no"
+  flook: "yes"
+  pexsi: "no"
+
+energies:
+  Ebs:          -0.93924161E+02
+  Eions:           0.65685733E+03
+  Ena:           0.18379502E+03
+  Ekin:           0.12361601E+03
+  Enl:           0.39322351E+02
+  Eso:           0.00000000E+00
+  Edftu:           0.00000000E+00
+  DEna:          -0.29966892E-01
+  DUscf:           0.84331172E+00
+  DUext:           0.00000000E+00
+  Exc:          -0.66793294E+02
+  Ecorrec:           0.00000000E+00
+  Emadel:           0.00000000E+00
+  Emeta:           0.00000000E+00
+  Emolmec:           0.00000000E+00
+  Ekinion:           0.00000000E+00
+  Eharris:          -0.37610389E+03
+  Etot:          -0.37610389E+03
+  FreeEng:          -0.37610389E+03
+
+...

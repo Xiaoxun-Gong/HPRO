@@ -9,7 +9,8 @@ from .structure import Structure
 from .matlcao import MatLCAO
 from .lcaodata import LCAOData # this might be unsafe?
 from .utils import slice_same
-
+from .orbutils import OrbPair 
+from .twocenter import calc_overlap
 '''
 This module implemements several functions for reading and writing files in deeph format
 '''
@@ -59,6 +60,34 @@ def save_orbital_types_deeph(structure, ion_dir, savedir):
     with open(file_path, 'w') as f:
         for atom_nbr in atom_numbers_in_structure:
             l_values = orbital_types_per_species[atom_nbr]
+            f.write(' '.join(map(str, l_values)) + '\n')
+
+def save_overlap_deeph(structure, ecut, basis_path_root, savedir, filename='overlaps.h5', energy_unit=False):
+    basis = LCAOData(structure, basis_path_root=basis_path_root, aocode='siesta')
+
+    basis.calc_phiQ(ecut * 1.1)
+    orbpairs1 = {}
+    stru = structure
+
+    for ispc1 in range(stru.nspc):
+        for jspc2 in range(stru.nspc):
+            spc1 = stru.atomic_species[ispc1]
+            spc2 = stru.atomic_species[jspc2]
+
+            orbpairs_thisij1 = []
+            for jorb in range(basis.norb_spc[spc2]):
+
+                r2 = basis.phirgrids_spc[spc2][jorb].rcut
+                for iorb in range(basis.norb_spc[spc1]):
+                    r1 = basis.phirgrids_spc[spc1][iorb].rcut
+                    thispair = OrbPair(basis.phiQlist_spc[spc1][iorb],
+                                    basis.phiQlist_spc[spc2][jorb], r1 + r2, 1)
+                    orbpairs_thisij1.append(thispair)
+
+            orbpairs1[(spc1, spc2)] = orbpairs_thisij1
+
+    olp_basis = calc_overlap(basis, orbpairs1, Ecut=ecut)
+    save_mat_deeph(savedir,olp_basis,filename=filename,energy_unit=False)
 
 
 def get_Us_openmx2wiki(ls_spc):

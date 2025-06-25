@@ -63,6 +63,7 @@ def save_orbital_types_deeph(structure, ion_dir, savedir):
             f.write(' '.join(map(str, l_values)) + '\n')
 
 def save_overlap_deeph(structure, ecut, basis_path_root, savedir, filename='overlaps.h5', energy_unit=False):
+    os.makedirs(savedir, exist_ok=True)
     basis = LCAOData(structure, basis_path_root=basis_path_root, aocode='siesta')
 
     basis.calc_phiQ(ecut * 1.1)
@@ -87,7 +88,7 @@ def save_overlap_deeph(structure, ecut, basis_path_root, savedir, filename='over
             orbpairs1[(spc1, spc2)] = orbpairs_thisij1
 
     olp_basis = calc_overlap(basis, orbpairs1, Ecut=ecut)
-    save_mat_deeph(savedir,olp_basis,filename=filename,energy_unit=False)
+    save_mat_deeph(savedir,olp_basis,filename=filename,energy_unit=energy_unit)
 
 
 def get_Us_openmx2wiki(ls_spc):

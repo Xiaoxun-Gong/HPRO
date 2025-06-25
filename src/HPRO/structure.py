@@ -2,6 +2,7 @@ import json
 import os
 import numpy as np
 import xml.etree.ElementTree as ET
+from pymatgen.core import Structure as PmgStructure
 
 from .constants import bohr2ang, hartree2ev
 from .utils import atom_name2number, atom_number2name
@@ -107,6 +108,17 @@ class Structure:
             elements = elements[None]
             atom_pos_cart = atom_pos_cart[None, :]
         return cls(rprim, elements, atom_pos_cart, efermi, atomic_positions_is_cart=True)
+    
+    @classmethod
+    def from_pymatgen(cls, pmg_structure):
+        if isinstance(pmg_structure, str):
+            pmg_structure = PmgStructure.from_file(pmg_structure)
+        rprim = pmg_structure.lattice.matrix / bohr2ang
+        atom_names = [atom.symbol for atom in pmg_structure.species]
+        atomic_numbers = np.array(atom_name2number(atom_names))
+        atomic_positions_red = pmg_structure.frac_coords
+        efermi = 0.0
+        return cls(rprim, atomic_numbers, atomic_positions_red, efermi, atomic_positions_is_cart=False)
         
     def __eq__(self, other):
         return self.issame(other)
@@ -144,6 +156,8 @@ def load_structure(path, interface):
             raise ValueError(f'Invalid QE structure path: {path}')
     elif interface == 'bgw':
         stru = Structure.from_bgw(path)
+    elif interface == 'pymatgen':
+        stru = Structure.from_pymatgen(path)
     elif interface == 'vasp':
         with open(path) as f:
             stru = Structure.from_poscar(f)
@@ -154,3 +168,17 @@ def load_structure(path, interface):
     else:
         raise NotImplementedError(f'Unknown structure interface: {interface}')
     return stru
+
+def save_pymatgen_structure(structure, filename):
+    """
+    Save a pymatgen structure to a file in the desired format.
+    
+    Parameters:
+    structure (pymatgen.core.Structure): The structure to save.
+    filename (str): The name of the file to save the structure to.
+    """
+    lattice = structure.rprim * bohr2ang
+    species = atom_number2name(structure.atomic_numbers)
+    frac_coords = structure.atomic_positions_red
+    pmg_structure = PmgStructure(lattice=lattice, species=species, coords=frac_coords)
+    pmg_structure.to(filename)

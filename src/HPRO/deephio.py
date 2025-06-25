@@ -40,6 +40,27 @@ Us_openmx2wiki = {
     3: np.eye(7)[[6, 4, 2, 0, 1, 3, 5]]
 }
 
+def save_orbital_types_deeph(structure, ion_dir, savedir):
+    """
+    Save the orbital_types.dat file in deeph format.
+
+    """
+    os.makedirs(savedir, exist_ok=True)
+    lcaodata = LCAOData(
+        structure=structure,
+        basis_path_root=ion_dir,
+        aocode='siesta'
+    )
+
+    atom_numbers_in_structure = lcaodata.structure.atomic_numbers
+    orbital_types_per_species = lcaodata.ls_spc
+
+    file_path = os.path.join(savedir, 'orbital_types.dat')
+    with open(file_path, 'w') as f:
+        for atom_nbr in atom_numbers_in_structure:
+            l_values = orbital_types_per_species[atom_nbr]
+
+
 def get_Us_openmx2wiki(ls_spc):
     '''
     DeepH follows the OpenMX definition of spherical harmonics, but this software follows Wikipedia's convention.

@@ -65,15 +65,14 @@ def save_orbital_types_deeph(structure, ion_dir, savedir):
 def save_overlap_deeph(structure, ecut, basis_path_root, savedir, filename='overlaps.h5', energy_unit=False):
     os.makedirs(savedir, exist_ok=True)
     basis = LCAOData(structure, basis_path_root=basis_path_root, aocode='siesta')
-
+    basis.check_rstart()
     basis.calc_phiQ(ecut * 1.1)
-    orbpairs1 = {}
-    stru = structure
 
-    for ispc1 in range(stru.nspc):
-        for jspc2 in range(stru.nspc):
-            spc1 = stru.atomic_species[ispc1]
-            spc2 = stru.atomic_species[jspc2]
+    orbpairs1 = {}
+    for ispc1 in range(structure.nspc):
+        for jspc2 in range(structure.nspc):
+            spc1 = structure.atomic_species[ispc1]
+            spc2 = structure.atomic_species[jspc2]
 
             orbpairs_thisij1 = []
             for jorb in range(basis.norb_spc[spc2]):
@@ -88,6 +87,9 @@ def save_overlap_deeph(structure, ecut, basis_path_root, savedir, filename='over
             orbpairs1[(spc1, spc2)] = orbpairs_thisij1
 
     olp_basis = calc_overlap(basis, orbpairs1, Ecut=ecut)
+    error_hermiticity = olp_basis.hermitianize()
+    print(f'Errore di non-Hermiticità per la matrice di sovrapposizione: {error_hermiticity} [10]')
+
     save_mat_deeph(savedir,olp_basis,filename=filename,energy_unit=energy_unit)
 
 

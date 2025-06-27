@@ -88,8 +88,10 @@ def save_overlap_deeph(structure, ecut, basis_path_root, savedir, filename='over
 
     olp_basis = calc_overlap(basis, orbpairs1, Ecut=ecut)
     error_hermiticity = olp_basis.hermitianize()
-    print(f'Errore di non-Hermiticità per la matrice di sovrapposizione: {error_hermiticity} [10]')
+    print(f'Errore di non-Hermiticità per la matrice di sovrapposizione: {error_hermiticity}')
 
+    #save structure, overlap matrix and orbital_types
+    save_structure_deeph(structure=structure,savedir=savedir)
     save_mat_deeph(savedir,olp_basis,filename=filename,energy_unit=energy_unit)
 
 

@@ -111,6 +111,14 @@ class Structure:
     
     @classmethod
     def from_pymatgen(cls, pmg_structure):
+        """
+        Load a structure in deeph format from a pymatgen structure
+
+        Parameters:
+        pmg_structure: 
+        The structure object, can be either a pmg structure or a file in a 
+        format readable by pymatgen
+        """
         if isinstance(pmg_structure, str):
             pmg_structure = PmgStructure.from_file(pmg_structure)
         rprim = pmg_structure.lattice.matrix / bohr2ang
@@ -174,8 +182,8 @@ def save_pymatgen_structure(structure, filename):
     Save a pymatgen structure to a file in the desired format.
     
     Parameters:
-    structure (pymatgen.core.Structure): The structure to save.
-    filename (str): The name of the file to save the structure to.
+    structure: The structure to save.
+    filename: The name of the file to save the structure to.
     """
     lattice = structure.rprim * bohr2ang
     species = atom_number2name(structure.atomic_numbers)

@@ -9,7 +9,8 @@ from .structure import Structure
 from .matlcao import MatLCAO
 from .lcaodata import LCAOData # this might be unsafe?
 from .utils import slice_same
-
+from .orbutils import OrbPair 
+from .twocenter import calc_overlap
 '''
 This module implemements several functions for reading and writing files in deeph format
 '''
@@ -39,6 +40,60 @@ Us_openmx2wiki = {
     2: np.eye(5)[[2, 4, 0, 3, 1]],
     3: np.eye(7)[[6, 4, 2, 0, 1, 3, 5]]
 }
+
+def save_orbital_types_deeph(structure, ion_dir, savedir):
+    """
+    Save the orbital_types.dat file in deeph format.
+
+    """
+    os.makedirs(savedir, exist_ok=True)
+    lcaodata = LCAOData(
+        structure=structure,
+        basis_path_root=ion_dir,
+        aocode='siesta'
+    )
+
+    atom_numbers_in_structure = lcaodata.structure.atomic_numbers
+    orbital_types_per_species = lcaodata.ls_spc
+
+    file_path = os.path.join(savedir, 'orbital_types.dat')
+    with open(file_path, 'w') as f:
+        for atom_nbr in atom_numbers_in_structure:
+            l_values = orbital_types_per_species[atom_nbr]
+            f.write(' '.join(map(str, l_values)) + '\n')
+
+def save_overlap_deeph(structure, ecut, basis_path_root, savedir, filename='overlaps.h5', energy_unit=False, buffer = 0.0):
+    os.makedirs(savedir, exist_ok=True)
+    basis = LCAOData(structure, basis_path_root=basis_path_root, aocode='siesta')
+    basis.check_rstart()
+    basis.calc_phiQ(ecut * 1.1)
+
+    orbpairs1 = {}
+    for ispc1 in range(structure.nspc):
+        for jspc2 in range(structure.nspc):
+            spc1 = structure.atomic_species[ispc1]
+            spc2 = structure.atomic_species[jspc2]
+
+            orbpairs_thisij1 = []
+            for jorb in range(basis.norb_spc[spc2]):
+
+                r2 = basis.phirgrids_spc[spc2][jorb].rcut
+                for iorb in range(basis.norb_spc[spc1]):
+                    r1 = basis.phirgrids_spc[spc1][iorb].rcut
+                    thispair = OrbPair(basis.phiQlist_spc[spc1][iorb],
+                                    basis.phiQlist_spc[spc2][jorb], r1 + r2 + buffer, 1)
+                    orbpairs_thisij1.append(thispair)
+
+            orbpairs1[(spc1, spc2)] = orbpairs_thisij1
+
+    olp_basis = calc_overlap(basis, orbpairs1, Ecut=ecut)
+    error_hermiticity = olp_basis.hermitianize()
+    print(f'Overlap non-Hermiticity error: {error_hermiticity}')
+
+    #save structure, overlap matrix and orbital_types
+    save_structure_deeph(structure=structure,savedir=savedir)
+    save_mat_deeph(savedir,olp_basis,filename=filename,energy_unit=energy_unit)
+
 
 def get_Us_openmx2wiki(ls_spc):
     '''

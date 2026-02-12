@@ -62,7 +62,7 @@ def save_orbital_types_deeph(structure, ion_dir, savedir):
             l_values = orbital_types_per_species[atom_nbr]
             f.write(' '.join(map(str, l_values)) + '\n')
 
-def save_overlap_deeph(structure, ecut, basis_path_root, savedir, filename='overlaps.h5', energy_unit=False):
+def save_overlap_deeph(structure, ecut, basis_path_root, savedir, filename='overlaps.h5', energy_unit=False, buffer = 0.0):
     os.makedirs(savedir, exist_ok=True)
     basis = LCAOData(structure, basis_path_root=basis_path_root, aocode='siesta')
     basis.check_rstart()
@@ -81,7 +81,7 @@ def save_overlap_deeph(structure, ecut, basis_path_root, savedir, filename='over
                 for iorb in range(basis.norb_spc[spc1]):
                     r1 = basis.phirgrids_spc[spc1][iorb].rcut
                     thispair = OrbPair(basis.phiQlist_spc[spc1][iorb],
-                                    basis.phiQlist_spc[spc2][jorb], r1 + r2, 1)
+                                    basis.phiQlist_spc[spc2][jorb], r1 + r2 + buffer, 1)
                     orbpairs_thisij1.append(thispair)
 
             orbpairs1[(spc1, spc2)] = orbpairs_thisij1

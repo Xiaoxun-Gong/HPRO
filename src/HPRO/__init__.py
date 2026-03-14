@@ -1,4 +1,5 @@
 from .kernel import PW2AOkernel
-from .lcaodiag import LCAODiagKernel
+from .aodiag import AODiagKernel
+from .utils.misc import Timer
 
-__version__ = '0.1.0'
+__version__ = "0.3.0"

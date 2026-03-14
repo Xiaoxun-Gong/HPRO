@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=80", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hpro"
+version = "0.3.0"
+authors = [
+    {name = "Xiaoxun Gong", email = "xiaoxun.gong@berkeley.edu"},
+]
+description = "Hamiltonian Projection and Reconstruction to atomic Orbitals"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+keywords = [
+    "DFT", "Hamiltonian", "atomic orbital", "plane-wave",
+    "DeepH", "quantum mechanics", "materials science",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.7",
+    "scipy",
+    "tqdm",
+    "h5py",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+mpi = ["mpi4py"]
+slepc = ["mpi4py", "petsc4py", "slepc4py"]
+
+[project.urls]
+Homepage = "https://github.com/Xiaoxun-Gong/HPRO"
+Repository = "https://github.com/Xiaoxun-Gong/HPRO.git"
+Issues = "https://github.com/Xiaoxun-Gong/HPRO/issues"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["HPRO*"]
+
+[tool.setuptools.package-data]
+HPRO = ["data/*.json"]

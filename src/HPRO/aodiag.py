@@ -303,20 +303,17 @@ class AODiagKernel:
             
         # Collect eigs and wfnao from groups
         if comm is not None:
-            comm_m = comm.Split(color=0 if is_master(comm=comm_pool) else 1, key=comm.rank)
+            eigs_buf = np.zeros((self.nk, nbnd), dtype='f8')
+            wfnao_buf = np.zeros((self.nk, nbnd, self.nao), dtype='c16')
             if is_master(comm=comm_pool):
-                assert comm_m.rank == self.igrp
-                if is_master(comm=comm_m):
-                    eigs_recv = np.empty((self.nk, nbnd), dtype='f8')
-                    wfnao_recv = np.empty((self.nk, nbnd, self.nao), dtype='c16')
-                else:
-                    eigs_recv = wfnao_recv = None
-                comm_m.Gatherv([eigs, nkloc * nbnd, MPI.REAL8],
-                               [eigs_recv, count_k*nbnd, displ_k[:-1]*nbnd, MPI.REAL8], root=0)
-                comm_m.Gatherv([wfnao, nkloc*nbnd*self.nao, MPI.COMPLEX16],
-                               [wfnao_recv, count_k*nbnd*self.nao, displ_k[:-1]*nbnd*self.nao, MPI.COMPLEX16], root=0)
-                eigs = eigs_recv
-                wfnao = wfnao_recv
+                eigs_buf[displ_k[self.igrp] : displ_k[self.igrp] + nkloc] = eigs
+                wfnao_buf[displ_k[self.igrp] : displ_k[self.igrp] + nkloc] = wfnao
+                eigs_root = np.empty_like(eigs_buf) if is_master(comm=comm) else None
+                wfnao_root = np.empty_like(wfnao_buf) if is_master(comm=comm) else None
+                comm.Reduce(eigs_buf, eigs_root, op=MPI.SUM, root=0)
+                comm.Reduce(wfnao_buf, wfnao_root, op=MPI.SUM, root=0)
+                eigs = eigs_root
+                wfnao = wfnao_root
     
         if is_master(comm=comm):
             for ikpt in range(self.nk):

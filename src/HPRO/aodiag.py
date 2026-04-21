@@ -158,13 +158,11 @@ class AODiagKernel:
 
             count_proc, displ_proc = distrib_grps(comm.size, nkpools, displ_last_elem=True)
             igrp = np.searchsorted(displ_proc, comm.rank, side='right') - 1
-            if nkpools == min(self.nk, comm.size):
-                comm_pool = MPI.COMM_SELF
-            else:
-                msg = 'Number of k point pools must be equal to min(# k points, # processors) when slepc4py is not installed'
-                assert use_slepc4py, msg
-                comm_pool = comm.Split(color=igrp, key=comm.rank)
-            # comm_pool = comm.Split(color=igrp, key=comm.rank)
+            
+            msg = 'Number of k point pools must be equal to min(# k points, # processors) when slepc4py is not installed'
+            if not use_slepc4py:
+                assert nkpools == min(self.nk, comm.size), msg
+            comm_pool = comm.Split(color=igrp, key=comm.rank)
 
 
         else:
@@ -303,18 +301,27 @@ class AODiagKernel:
             
         # Collect eigs and wfnao from groups
         if comm is not None:
-            eigs_buf = np.zeros((self.nk, nbnd), dtype='f8')
-            wfnao_buf = np.zeros((self.nk, nbnd, self.nao), dtype='c16')
-            if is_master(comm=comm_pool):
-                eigs_buf[displ_k[self.igrp] : displ_k[self.igrp] + nkloc] = eigs
-                wfnao_buf[displ_k[self.igrp] : displ_k[self.igrp] + nkloc] = wfnao
-                eigs_root = np.empty_like(eigs_buf) if is_master(comm=comm) else None
-                wfnao_root = np.empty_like(wfnao_buf) if is_master(comm=comm) else None
-                comm.Reduce(eigs_buf, eigs_root, op=MPI.SUM, root=0)
-                comm.Reduce(wfnao_buf, wfnao_root, op=MPI.SUM, root=0)
-                eigs = eigs_root
-                wfnao = wfnao_root
-    
+            comm_m = comm.Split(color=0 if is_master(comm=comm_pool) else 1, key=comm.rank)
+            assert comm_m.rank == self.igrp
+            assert comm_m.size == self.nkpools
+            if is_master(comm=comm_m):
+                eigs_recv = np.empty((self.nk, nbnd), dtype='f8')
+                wfnao_recv = np.empty((self.nk, nbnd, self.nao), dtype='c16')
+                eigs_recv[displ_k[0] : displ_k[0] + count_k[0], :] = eigs
+                wfnao_recv[displ_k[0] : displ_k[0] + count_k[0], :, :] = wfnao
+                for src in range(1, self.nkpools):
+                    eigs_buf = np.empty(count_k[src] * nbnd, dtype='f8')
+                    wfnao_buf = np.empty(count_k[src] * nbnd * self.nao, dtype='c16')
+                    comm_m.Recv([eigs_buf, MPI.DOUBLE], source=src, tag=1001)
+                    comm_m.Recv([wfnao_buf, MPI.DOUBLE_COMPLEX], source=src, tag=1002)
+                    eigs_recv[displ_k[src] : displ_k[src] + count_k[src], :] = eigs_buf.reshape(count_k[src], nbnd)
+                    wfnao_recv[displ_k[src] : displ_k[src] + count_k[src], :, :] = wfnao_buf.reshape(count_k[src], nbnd, self.nao)
+                eigs = eigs_recv
+                wfnao = wfnao_recv
+            else:
+                comm_m.Send([eigs.ravel(), MPI.DOUBLE], dest=0, tag=1001)
+                comm_m.Send([wfnao.ravel(), MPI.DOUBLE_COMPLEX], dest=0, tag=1002)
+
         if is_master(comm=comm):
             for ikpt in range(self.nk):
                 kpt = self.kpts[ikpt]

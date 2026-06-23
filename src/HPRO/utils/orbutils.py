@@ -74,15 +74,16 @@ class GridFunc:
         rshape0 = Rvec.shape[:-1]
         Rvec = Rvec.reshape(-1, 3)
         Rnorm , x, y, z = r_to_xyz(Rvec)
-        # deal with points within the range of the radial grid (outsiders are set to zero)
-        Rwithin = Rnorm <= self.rgd.rend
-        nwithin = np.sum(Rwithin)
         R_lm = np.zeros((Rvec.shape[0], 2*self.l+1))
-        if nwithin > 0:
-            Rnorm, x, y, z = Rnorm[Rwithin], x[Rwithin], y[Rwithin], z[Rwithin]
-            R_lm[Rwithin, :] = self.getvalxyz(Rnorm, x, y, z)
-        # deal with points smaller than self.rgd.rstart
+        # Points outside the radial grid are zero. Points below rstart are
+        # handled before interpolation for logarithmic/exponential grids.
+        Rwithin = Rnorm <= self.rgd.rend
         Rsmall = Rnorm < self.rgd.rstart
+        Rinterp = Rwithin & (~Rsmall)
+        ninterp = np.sum(Rinterp)
+        if ninterp > 0:
+            R_lm[Rinterp, :] = self.getvalxyz(Rnorm[Rinterp], x[Rinterp], y[Rinterp], z[Rinterp])
+
         nsmall = np.sum(Rsmall)
         if nsmall > 0:
             R_lm[Rsmall, :] = 0. if self.l > 0 else self.func[0]
@@ -233,4 +234,3 @@ def grid_R2G(Ggrid, gridfuncR, return_real=True):
         phi, phase = spbessel_transfrorm(gridfuncR.l, Ggrid.rfunc[ir], gridfuncR.rgd, gridfuncR.func, norm='forward')
         funcR[ir] = phi if return_real else phi * phase
     return GridFunc(Ggrid, funcR, l=gridfuncR.l)
-    

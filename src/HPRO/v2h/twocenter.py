@@ -79,14 +79,24 @@ class TwoCenterIntgSplines:
         
         return SR_lm_lm.reshape(rshape0 + (2*self.l1+1, 2*self.l2+1))
 
-def calc_overlap(aodata1, aodata2=None, Ecut=50, kind=1):
+def calc_overlap(aodata1, aodata2=None, Ecut=50, kind=1, kdense=None):
     '''
     Calculate the overlap matrices.
 
     Parameters:
         Ecut: cutoff energy of radial grid in reciprocal space, in Hartree
         kind: 1 - overlap; 2 - kinetic matrix element
+        kdense: optional density of the reciprocal radial grid. If provided,
+                temporarily overrides CFG.AOFT_QGRID_DEN.
     '''
+
+    if kdense is not None:
+        original_kdense = CFG.AOFT_QGRID_DEN
+        CFG.AOFT_QGRID_DEN = kdense
+        try:
+            return calc_overlap(aodata1, aodata2=aodata2, Ecut=Ecut, kind=kind, kdense=None)
+        finally:
+            CFG.AOFT_QGRID_DEN = original_kdense
 
     is_selfolp = aodata2 is None
     if is_selfolp:

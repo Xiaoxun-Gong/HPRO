@@ -54,4 +54,4 @@ where = ["src"]
 include = ["HPRO*"]
 
 [tool.setuptools.package-data]
-HPRO = ["data/*.json"]
+HPRO = ["data/*.json", "*.so", "*.pyd", "pyarmor_runtime_*/**/*"]

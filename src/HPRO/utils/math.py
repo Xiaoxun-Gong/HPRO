@@ -111,7 +111,7 @@ def spharm_xyz(l, x, y, z):
     assert len(x.shape) == len(y.shape) == len(z.shape) == 1
     spharm = np.zeros((x.shape[0], 2*l+1), dtype='f8')
     for m in range(-l, l+1):
-        spharm[:, m+l] = Y(l**2+m+l, x, y, z)
+        spharm[:, m+l] = Y(l**2+m+l, x, y, z) #* ((-1)**(m%2))
     return spharm
 
 def spharm_old(r, l):

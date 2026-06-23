@@ -3,8 +3,10 @@ import re
 import json
 import xml.etree.ElementTree as ET
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 from .. import config as CFG
+from ..constants import OPENMX_BASIS_SPECS_2019, OPENMX_L_LABELS, OPENMX_VERSION, OPENMX_LINEAR_RGRID_DEN
 from ..utils.structure import Structure
 from ..utils.misc import atom_number2name, atom_name2number
 from ..utils.orbutils import grid_R2G, GridFunc, LinearRGD
@@ -27,6 +29,132 @@ def findfile(folder, pattern):
     if len(files) > 1:
         raise AssertionError(f'Multiple valid files found under {folder} according to pattern {pattern}')
     return f'{folder}/{files[0]}'
+
+def parse_openmx_basis_spec(basis_spec):
+    """
+    Parse an OpenMX basis suffix such as ``s3p2d2f1`` into radial counts by l.
+    """
+    basis_spec = basis_spec.strip()
+    if '-' in basis_spec:
+        basis_spec = basis_spec.split('-', 1)[1]
+
+    l_counts = {}
+    pos = 0
+    for match in re.finditer(r'([spdfgh])(\d+)', basis_spec.lower()):
+        if match.start() != pos:
+            raise ValueError(f'Invalid OpenMX basis specification: {basis_spec}')
+        l_counts[OPENMX_L_LABELS[match.group(1)]] = int(match.group(2))
+        pos = match.end()
+    if pos != len(basis_spec):
+        raise ValueError(f'Invalid OpenMX basis specification: {basis_spec}')
+    return l_counts
+
+
+def _openmx_level_from_aocode(aocode):
+    prefix = 'openmx-'
+    if not aocode.startswith(prefix):
+        raise ValueError(f'Invalid OpenMX AO code: {aocode}')
+    level = aocode[len(prefix):].lower()
+    if level not in OPENMX_BASIS_SPECS_2019:
+        raise NotImplementedError(
+            f'OpenMX basis level {level} is not implemented; '
+            f'use OpenMX {OPENMX_VERSION} levels openmx-quick, '
+            'openmx-standard, or openmx-precise'
+        )
+    return level
+
+
+def _openmx_basis_spec_for_level(element, level):
+    if element not in OPENMX_BASIS_SPECS_2019[level]:
+        raise NotImplementedError(
+            f'OpenMX {OPENMX_VERSION} {level} basis is not listed for element {element}'
+        )
+    return OPENMX_BASIS_SPECS_2019[level][element]
+
+
+def _openmx_pao_name_from_basis_spec(basis_spec):
+    return basis_spec.split('-', 1)[0]
+
+
+def _openmx_element_from_basis_spec(basis_spec):
+    pao_name = _openmx_pao_name_from_basis_spec(basis_spec)
+    match = re.match(r'^([A-Z][a-z]?)[0-9.].*$', pao_name)
+    if match is None:
+        raise ValueError(f'Cannot infer OpenMX element from basis specification: {basis_spec}')
+    return match.group(1)
+
+
+def _openmx_find_pao_file(basis_path_root, basis_spec):
+    pao_name = _openmx_pao_name_from_basis_spec(basis_spec)
+    return findfile(basis_path_root, rf'^{re.escape(pao_name)}\.pao$')
+
+
+def _openmx_normalize_basis_info(info):
+    if 'basis' in info and isinstance(info['basis'], dict):
+        info = info['basis']
+    elif 'basis_info' in info and isinstance(info['basis_info'], dict):
+        info = info['basis_info']
+    elif 'elements' in info and isinstance(info['elements'], dict):
+        info = info['elements']
+
+    if not isinstance(info, dict):
+        raise ValueError('OpenMX basis_info.json must contain a JSON object')
+
+    basis_specs = {}
+    for element, basis_spec in info.items():
+        if not isinstance(element, str) or not isinstance(basis_spec, str):
+            raise ValueError('OpenMX basis_info.json must map element names to basis strings')
+        element = element.strip()
+        basis_spec = basis_spec.strip()
+        if element == '' or basis_spec == '':
+            raise ValueError('OpenMX basis_info.json contains an empty element or basis string')
+        basis_element = _openmx_element_from_basis_spec(basis_spec)
+        if basis_element != element:
+            raise ValueError(
+                f'OpenMX basis_info.json entry {element}: {basis_spec} has inconsistent element {basis_element}'
+            )
+        basis_specs[element] = basis_spec
+    return basis_specs
+
+
+def _openmx_load_basis_info(basis_path_root):
+    info_file = os.path.join(basis_path_root, 'basis_info.json')
+    if not os.path.isfile(info_file):
+        raise ValueError(
+            f'OpenMX aocode requires {info_file} with element-to-basis mappings, '
+            'for example {"P": "P7.0-s2p2d1"}'
+        )
+    with open(info_file, 'r') as basis_info_file:
+        basis_specs = _openmx_normalize_basis_info(json.load(basis_info_file))
+
+    for basis_spec in basis_specs.values():
+        _openmx_find_pao_file(basis_path_root, basis_spec)
+    return basis_specs
+
+
+def _openmx_element_from_filename(filename):
+    basename = os.path.basename(filename)
+    match = re.match(r'^([A-Z][a-z]?)[0-9.].*\.pao$', basename)
+    if match is None:
+        raise ValueError(f'Cannot infer OpenMX element from PAO filename: {filename}')
+    return match.group(1)
+
+
+def _openmx_interpolate_to_linear_grid(rgrid, func, rcut, l, rdense=OPENMX_LINEAR_RGRID_DEN):
+    """
+    Interpolate an OpenMX PAO radial function to a dense linear grid.
+
+    This mirrors the DeepH-dock OpenMX overlap path for numerical testing.
+    """
+    npoints = max(int(rcut * rdense), 10)
+    r_linear = np.linspace(0.0, rcut, npoints)
+    spline = CubicSpline(rgrid, func)
+    func_linear = spline(r_linear)
+    if l == 0:
+        func_linear[r_linear < rgrid[0]] = func[0]
+    else:
+        func_linear[r_linear < rgrid[0]] = 0.0
+    return GridFunc(LinearRGD(0.0, rcut, npoints), func_linear, l=l, rcut=rcut)
 
 
 class AOData:
@@ -71,6 +199,9 @@ class AOData:
         
         spc_numbers = structure.atomic_species
         spc_names = atom_number2name(spc_numbers)
+        openmx_basis_specs = None
+        if aocode == 'openmx' or aocode.startswith('openmx-'):
+            openmx_basis_specs = _openmx_load_basis_info(basis_path_root)
         for spc_nu, spc_na in zip(spc_numbers, spc_names):
             Dij, Qij = None, None
             valence_charge = None
@@ -80,6 +211,24 @@ class AOData:
                 nradial, phirgrids, _, _, valence_charge, _ = parse_siesta_ion(f'{basis_path_root}/{spc_na}.ion')
             elif aocode == 'gpaw':
                 nradial, phirgrids = parse_gpaw_basis(findfile(basis_path_root, rf'^{spc_na}\..*\.basis$'))
+            elif aocode == 'openmx':
+                if spc_na not in openmx_basis_specs:
+                    raise ValueError(f'OpenMX basis for element {spc_na} is not provided')
+                basis_spec = openmx_basis_specs[spc_na]
+                filename = _openmx_find_pao_file(basis_path_root, basis_spec)
+                nradial, phirgrids = parse_openmx_pao(filename, basis_spec=basis_spec)
+            elif aocode.startswith('openmx-'):
+                level = _openmx_level_from_aocode(aocode)
+                basis_spec = _openmx_basis_spec_for_level(spc_na, level)
+                if spc_na not in openmx_basis_specs:
+                    raise ValueError(f'OpenMX basis for element {spc_na} is not provided')
+                if openmx_basis_specs[spc_na] != basis_spec:
+                    raise ValueError(
+                        f'OpenMX basis_info.json gives {spc_na}: {openmx_basis_specs[spc_na]}, '
+                        f'but aocode={aocode} requires {basis_spec}'
+                    )
+                filename = _openmx_find_pao_file(basis_path_root, basis_spec)
+                nradial, phirgrids = parse_openmx_pao(filename, basis_spec=basis_spec)
             elif aocode == 'gpaw-projR':
                 # todo: not using PBE?
                 gpawpsp = gpaw_psp(findfile(basis_path_root, rf'^{spc_na}(\..*|)\.PBE(.gz|)$'))
@@ -261,6 +410,104 @@ def parse_gpaw_basis(filename):
     norb = len(phirgrids)
     
     return norb, phirgrids
+
+def parse_openmx_pao(filename, level=None, basis_spec=None):
+    """
+    Read OpenMX PAO basis functions from a ``.pao`` file.
+
+    OpenMX stores PAO radial functions as rows of ``x, r, R_1(r), R_2(r), ...``
+    under each ``pseudo.atomic.orbitals.L=<l>`` block, where ``r = exp(x)``.
+    The parser validates the logarithmic source grid, then interpolates the
+    radial functions to a dense linear grid for the HPRO overlap workflow.
+    """
+    if level is not None and basis_spec is not None:
+        raise ValueError('Specify either level or basis_spec, not both')
+
+    element = _openmx_element_from_filename(filename)
+    if basis_spec is None:
+        if level is None:
+            raise ValueError('Either level or basis_spec must be specified')
+        level = level.lower()
+        if level not in OPENMX_BASIS_SPECS_2019:
+            raise NotImplementedError(f'OpenMX basis level {level} is not implemented')
+        basis_spec = _openmx_basis_spec_for_level(element, level)
+    l_counts = parse_openmx_basis_spec(basis_spec)
+
+    metadata = {}
+    blocks = {}
+    with open(filename, 'r') as paofile:
+        lines = paofile.readlines()
+
+    iline = 0
+    while iline < len(lines):
+        line = lines[iline].strip()
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] in {
+            'AtomSpecies', 'maxL.pao', 'num.pao', 'radial.cutoff.pao',
+            'PAO.Lmax', 'PAO.Mul',
+        }:
+            metadata[parts[0]] = parts[1]
+
+        match = re.match(r'<pseudo\.atomic\.orbitals\.L=(\d+)', line)
+        if match is not None:
+            l = int(match.group(1))
+            rows = []
+            iline += 1
+            while iline < len(lines):
+                block_line = lines[iline].strip()
+                if block_line == f'pseudo.atomic.orbitals.L={l}>':
+                    break
+                if block_line:
+                    rows.append([float(value) for value in block_line.split()])
+                iline += 1
+            else:
+                raise ValueError(f'Missing end tag for pseudo.atomic.orbitals.L={l} in {filename}')
+            blocks[l] = np.array(rows, dtype=float)
+        iline += 1
+
+    if 'AtomSpecies' in metadata:
+        atom_number = int(metadata['AtomSpecies'])
+        element_from_number, = atom_number2name([atom_number])
+        if element_from_number != element:
+            raise ValueError(
+                f'PAO filename element {element} disagrees with AtomSpecies {atom_number}'
+            )
+
+    pao_mul = int(metadata.get('PAO.Mul', metadata.get('num.pao', 0)))
+    if pao_mul <= 0:
+        raise ValueError(f'Cannot determine PAO.Mul/num.pao in {filename}')
+    radial_cutoff = metadata.get('radial.cutoff.pao', None)
+    radial_cutoff = None if radial_cutoff is None else float(radial_cutoff)
+
+    phirgrids = []
+    for l, count in sorted(l_counts.items()):
+        if l not in blocks:
+            raise ValueError(f'OpenMX basis {basis_spec} requests l={l}, missing in {filename}')
+        data = blocks[l]
+        if data.ndim != 2 or data.shape[1] < 2 + count:
+            raise ValueError(
+                f'OpenMX PAO block l={l} has {data.shape[1]-2} radial functions, '
+                f'but basis {basis_spec} requests {count}'
+            )
+        if data.shape[1] < 2 + pao_mul:
+            raise ValueError(f'OpenMX PAO block l={l} is inconsistent with PAO.Mul={pao_mul}')
+
+        xgrid = data[:, 0]
+        rgrid = data[:, 1]
+        if not np.all(np.diff(xgrid) > 0):
+            raise ValueError(f'OpenMX PAO logarithmic grid is not increasing for l={l}')
+        dx = np.diff(xgrid)
+        if not np.allclose(dx, dx[0], rtol=1e-10, atol=1e-12):
+            raise ValueError(f'OpenMX PAO logarithmic grid is not uniform for l={l}')
+        if not np.allclose(rgrid, np.exp(xgrid), rtol=1e-10, atol=1e-12):
+            raise ValueError(f'OpenMX PAO radius grid does not satisfy r=exp(x) for l={l}')
+
+        for imu in range(count):
+            phirgrids.append(
+                _openmx_interpolate_to_linear_grid(rgrid, data[:, 2 + imu], radial_cutoff, l)
+            )
+
+    return len(phirgrids), phirgrids
 
 def parse_siesta_ion(filename):
     phirgrids_basis = []

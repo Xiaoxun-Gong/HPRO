@@ -11,6 +11,21 @@ This includes reading local potentials, reading nonlocal part of pseudopotential
 under AO basis.
 '''
 
+
+class _DTypeAwareMatrixList(list):
+    """List of heterogeneous-sized matrices with an aggregate NumPy dtype."""
+
+    @property
+    def dtype(self):
+        dtypes = [np.asarray(matrix).dtype for matrix in self]
+        if not dtypes:
+            return np.dtype(float)
+        complex_flags = [np.issubdtype(dtype, np.complexfloating) for dtype in dtypes]
+        if any(complex_flags) != all(complex_flags):
+            raise ValueError('Mixed real and complex pseudopotential Dij matrices')
+        return np.result_type(*dtypes)
+
+
 def read_vloc(filename, interface):
     if interface == 'bgw':
         vscread = bgw_vsc(filename)
@@ -104,4 +119,6 @@ def read_vnloc(structure, pspdir, dijfile=None, interface='qe'):
     else:
         raise NotImplementedError(f'Unknown vnloc interface: {interface}')    
 
+    if isinstance(Dij, list):
+        Dij = _DTypeAwareMatrixList(Dij)
     return Dij, Qij, projR

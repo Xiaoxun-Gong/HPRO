@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hpro"
-version = "0.3.1"
+version = "0.3.1.post1"
 authors = [
     {name = "Xiaoxun Gong", email = "xiaoxun.gong@berkeley.edu"},
 ]
@@ -54,4 +54,4 @@ where = ["src"]
 include = ["HPRO*"]
 
 [tool.setuptools.package-data]
-HPRO = ["data/*.json", "*.so", "*.pyd", "pyarmor_runtime_*/**/*"]
+HPRO = ["data/*.json", "from_openmx/*.txt", "*.so", "*.pyd", "pyarmor_runtime_*/**/*"]

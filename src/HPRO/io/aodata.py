@@ -518,6 +518,7 @@ def parse_siesta_ion(filename):
     norb_basis = 0
     norb_proj = 0
     rel = None
+    projector_rel = None
 
     ionfile = open(filename, 'r')
     line = ionfile.readline()
@@ -556,15 +557,26 @@ def parse_siesta_ion(filename):
             phirgrids_basis.append(GridFunc(rgd, phirgrid[1], l=l, rcut=rcut))
 
         # projector orbitals
-        projector_header = None
-        if rel:
-            projector_header = '#kb l, j, n (sequence number), Reference energy'
-        elif not rel:
-            projector_header = '#kb l, n (sequence number), Reference energy'
-        if projector_header is not None and line.find(projector_header) > 0:
+        # SIESTA can retain a fully relativistic pseudopotential flag in the
+        # preamble while writing derived scalar-relativistic KB projectors when
+        # SpinOrbit is disabled. The serialized KB header is authoritative.
+        rel_projector_header = '#kb l, j, n (sequence number), Reference energy'
+        nrl_projector_header = '#kb l, n (sequence number), Reference energy'
+        line_projector_rel = None
+        if line.find(rel_projector_header) > 0:
+            line_projector_rel = True
+        elif line.find(nrl_projector_header) > 0:
+            line_projector_rel = False
+
+        if line_projector_rel is not None:
+            if projector_rel is None:
+                projector_rel = line_projector_rel
+            elif projector_rel != line_projector_rel:
+                raise ValueError(f'Mixed scalar and j-resolved KB projectors in {filename}')
+
             sp = line.split()
             l = int(sp[0])
-            if rel:
+            if line_projector_rel:
                 j = float(sp[1])
                 n = int(sp[2])
                 ekb = float(sp[3])
@@ -595,19 +607,21 @@ def parse_siesta_ion(filename):
     Dij = np.diag(np.array(Dij_list))
     orbital_slices = np.cumsum(2 * np.array(l_list_proj) + 1)
     orbital_slices = np.insert(orbital_slices, 0, 0)
-    norbfull = orbital_slices[-1]
-    if rel:
+    norbfull = int(orbital_slices[-1])
+    if projector_rel is None:
+        projector_rel = rel
+    if projector_rel:
         Dij_full = np.zeros((2, 2, norbfull, norbfull), dtype=np.complex128)
     else:
         Dij_full = np.zeros((norbfull, norbfull), dtype=np.float64)
     for iorb in range(len(l_list_proj)):
         l1 = l_list_proj[iorb]
-        if rel: j1 = j_list_proj[iorb]
+        if projector_rel: j1 = j_list_proj[iorb]
         for jorb in range(len(l_list_proj)):
             l2 = l_list_proj[jorb]
-            if rel: j2 = j_list_proj[jorb]
-            if (l1 == l2) and ((not rel) or (j1 == j2)):
-                if rel:
+            if projector_rel: j2 = j_list_proj[jorb]
+            if (l1 == l2) and ((not projector_rel) or (j1 == j2)):
+                if projector_rel:
                     Dij_full[:, :, orbital_slices[iorb]:orbital_slices[iorb+1], 
                                    orbital_slices[jorb]:orbital_slices[jorb+1]] = \
                         Dij[iorb, jorb] * get_dmat_coeffs(l1, j1)
